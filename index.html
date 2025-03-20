@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación de Movimiento de Proyectil</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+</head>
+<body>
+    <script>
+        let entradaDelAngulo, entradaDeVelocidad, botonDisparar, botonReiniciar;
+        let proyectil, disparado = false;
+        let gravedad = 9.8, tiempo = 0;
+        let trayectoria = [];
+        let efectoDisparo = false, efectoImpacto = false;
+        let sonidoDisparo, sonidoImpacto;
+        let mostrarDatos = false;  // Nueva variable para controlar la visualización de los datos
+
+        function preload() {
+            sonidoDisparo = new Audio("https://www.fesliyanstudios.com/play-mp3/6481"); // Sonido de disparo
+            sonidoImpacto = new Audio("https://www.fesliyanstudios.com/play-mp3/387"); // Sonido de impacto
+        }
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+
+            entradaDelAngulo = createInput("");
+            entradaDelAngulo.position(20, 20);
+            entradaDelAngulo.attribute("placeholder", "Ángulo (°)");
+
+            entradaDeVelocidad = createInput("");
+            entradaDeVelocidad.position(20, 60);
+            entradaDeVelocidad.attribute("placeholder", "Velocidad (m/s)");
+
+            botonDisparar = createButton("Disparar");
+            botonDisparar.position(20, 100);
+            botonDisparar.mousePressed(iniciarDisparo);
+
+            botonReiniciar = createButton("Reiniciar");
+            botonReiniciar.position(20, 140);
+            botonReiniciar.mousePressed(reiniciarSimulacion);
+
+            proyectil = new Proyectil();
+        }
+
+        function draw() {
+            background(135, 206, 250);
+
+            dibujarNube(width * 0.25, height * 0.2);
+            dibujarNube(width * 0.6, height * 0.15);
+            dibujarNube(width * 0.8, height * 0.25);
+
+            fill(139, 69, 19);
+            rect(0, height - height * 0.05, width, height * 0.05);
+
+            fill(34, 139, 34);
+            for (let i = 0; i < width; i += width * 0.02) {
+                triangle(i, height - height * 0.05, i + width * 0.01, height - height * 0.1, i + width * 0.02, height - height * 0.05);
+            }
+
+            fill(100);
+            rect(width * 0.05, height - height * 0.05, width * 0.1, height * 0.05);
+            fill(50);
+            rect(width * 0.08, height - height * 0.1, width * 0.03, height * 0.05);
+            fill(150);
+            ellipse(width * 0.095, height - height * 0.075, width * 0.015, width * 0.015);
+
+            stroke(0, 0, 0);
+            noFill();
+            beginShape();
+            for (let punto of trayectoria) {
+                vertex(punto.x, punto.y);
+            }
+            endShape();
+
+            proyectil.mostrar();
+            if (disparado) {
+                proyectil.mover();
+            }
+
+            if (efectoDisparo) {
+                fill(255, 255, 0);
+                ellipse(width * 0.11, height - height * 0.075, width * 0.015, width * 0.015);
+                setTimeout(() => efectoDisparo = false, 100);
+            }
+
+            if (efectoImpacto) {
+                fill(255, 0, 0);
+                ellipse(proyectil.x, proyectil.y, width * 0.02, width * 0.02);
+                setTimeout(() => efectoImpacto = false, 200);
+            }
+
+            // Mostrar los datos solo si el proyectil ha tocado el suelo
+            if (mostrarDatos) {
+                fill(0);
+                textSize(width * 0.015);
+                text("Altura Máxima: " + round(proyectil.alturaMaxima) + " m", width * 0.7, height * 0.05);
+                text("Distancia Total: " + round(proyectil.distanciaTotal) + " m", width * 0.7, height * 0.1);
+                text("Tiempo de Vuelo: " + round(proyectil.tiempoVuelo) + " s", width * 0.7, height * 0.15);
+            }
+        }
+
+        function iniciarDisparo() {
+            let angulo = radians(float(entradaDelAngulo.value()));
+            let velocidad = float(entradaDeVelocidad.value());
+
+            if (isNaN(angulo) || isNaN(velocidad) || angulo <= 0 || angulo > 90 || velocidad <= 0) {
+                alert("Ángulo debe estar entre 0° y 90°, y velocidad debe ser positiva.");
+                return;
+            }
+
+            sonidoDisparo.play();
+            efectoDisparo = true;
+            trayectoria = [];
+            proyectil.lanzar(angulo, velocidad);
+            disparado = true;
+            mostrarDatos = false; // No mostrar datos hasta que el proyectil toque el suelo
+        }
+
+        function reiniciarSimulacion() {
+            proyectil = new Proyectil();
+            disparado = false;
+            trayectoria = [];
+            entradaDelAngulo.value("");
+            entradaDeVelocidad.value("");
+            mostrarDatos = false;  // Reiniciar el estado de los datos
+        }
+
+        class Proyectil {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = width * 0.1;
+                this.y = height - height * 0.1;
+                this.vx = 0;
+                this.vy = 0;
+                this.t = 0;
+                this.alturaMaxima = 0;
+                this.distanciaTotal = 0;
+                this.tiempoVuelo = 0;
+            }
+
+            lanzar(angulo, velocidad) {
+                this.reset();
+                this.vx = velocidad * cos(angulo);
+                this.vy = -velocidad * sin(angulo);
+                this.t = 0;
+
+                this.alturaMaxima = (velocidad * velocidad * sin(angulo) * sin(angulo)) / (2 * gravedad);
+                this.tiempoVuelo = (2 * velocidad * sin(angulo)) / gravedad;
+                this.distanciaTotal = velocidad * cos(angulo) * this.tiempoVuelo;
+            }
+
+            mover() {
+                this.t += 0.1;
+                this.x = width * 0.1 + this.vx * this.t;
+                this.y = height - height * 0.1 + this.vy * this.t + 0.5 * gravedad * this.t * this.t;
+
+                trayectoria.push({ x: this.x, y: this.y });
+
+                if (this.y >= height - height * 0.05) {
+                    this.y = height - height * 0.05;
+                    disparado = false;
+                    efectoImpacto = true;
+                    sonidoImpacto.play();
+                    mostrarDatos = true;  // Mostrar los datos cuando el proyectil toque el suelo
+                }
+            }
+
+            mostrar() {
+                fill(255, 0, 0);
+                ellipse(this.x, this.y, width * 0.01, width * 0.01);
+            }
+        }
+
+        function dibujarNube(x, y) {
+            fill(255);
+            ellipse(x, y, width * 0.05, width * 0.04);
+            ellipse(x + width * 0.02, y - width * 0.01, width * 0.06, width * 0.05);
+            ellipse(x + width * 0.04, y, width * 0.05, width * 0.04);
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            proyectil.reset();
+        }
+    </script>
+</body>
+</html>
